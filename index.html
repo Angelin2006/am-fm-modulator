@@ -3,99 +3,126 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AM & FM Signal Modulator</title>
+  <title>Web-Based Demonstration of Modulation Techniques</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
-      color: white;
-      text-align: center;
-      padding: 40px;
+      margin: 30px;
+      background-color: #f5f7fa;
+      color: #333;
     }
     h1 {
-      margin-bottom: 30px;
+      text-align: center;
     }
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 15px;
-      padding: 30px;
-      max-width: 700px;
-      margin: auto;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 20px;
     }
-    input[type="file"] {
-      padding: 10px;
-      background: white;
-      color: black;
-      border-radius: 10px;
+    label {
+      font-weight: bold;
     }
-    canvas {
-      background: #ffffff;
+    input, select, button {
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    #plot {
       width: 100%;
-      height: 200px;
-      border-radius: 10px;
-      margin-top: 20px;
-    }
-    button {
-      background-color: #1e90ff;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      margin-top: 20px;
-      cursor: pointer;
-      border-radius: 8px;
-    }
-    button:hover {
-      background-color: #4682b4;
+      height: 500px;
     }
   </style>
 </head>
+
 <body>
-  <div class="container">
-    <h1>🎵 AM & FM Modulator</h1>
-    <p>Upload your audio signal to visualize its AM, FM, Message, and Carrier waveforms.</p>
+  <h1>Web-Based Demonstration of Modulation Techniques</h1>
 
-    <input type="file" id="audioFile" accept="audio/*">
-    <br>
-    <button onclick="processAudio()">Generate AM/FM</button>
+  <div class="controls">
+    <label>Carrier Frequency (fc):</label>
+    <input type="number" id="fc" value="100" step="10" />
 
-    <h2>Message Signal</h2>
-    <canvas id="messageCanvas"></canvas>
+    <label>Message Frequency (fm):</label>
+    <input type="number" id="fm" value="10" step="1" />
 
-    <h2>Carrier Signal</h2>
-    <canvas id="carrierCanvas"></canvas>
+    <label>Modulation Index (β or μ):</label>
+    <input type="number" id="modIndex" value="0.5" step="0.1" />
 
-    <h2>AM Signal</h2>
-    <canvas id="amCanvas"></canvas>
+    <label>Modulation Type:</label>
+    <select id="modType">
+      <option value="AM">Amplitude Modulation (AM)</option>
+      <option value="FM">Frequency Modulation (FM)</option>
+      <option value="DSBSC">Double Sideband Suppressed Carrier (DSB-SC)</option>
+      <option value="SSBSC">Single Sideband Suppressed Carrier (SSB-SC)</option>
+    </select>
 
-    <h2>FM Signal</h2>
-    <canvas id="fmCanvas"></canvas>
+    <button onclick="plotSignal()">Generate Signal</button>
   </div>
 
+  <div id="plot"></div>
+
   <script>
-    function drawWave(canvasId, freq, amp, color) {
-      const canvas = document.getElementById(canvasId);
-      const ctx = canvas.getContext('2d');
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      for (let x = 0; x < width; x++) {
-        const t = x / width * 4 * Math.PI;
-        const y = height / 2 - amp * Math.sin(freq * t) * height / 3;
-        ctx.lineTo(x, y);
+    function plotSignal() {
+      const fc = parseFloat(document.getElementById("fc").value);
+      const fm = parseFloat(document.getElementById("fm").value);
+      const m = parseFloat(document.getElementById("modIndex").value);
+      const modType = document.getElementById("modType").value;
+
+      const fs = 100 * fc; // sampling frequency
+      const t = [];
+      const duration = 0.05; // seconds
+      const N = Math.floor(fs * duration);
+
+      for (let i = 0; i < N; i++) {
+        t.push(i / fs);
       }
-      ctx.stroke();
+
+      // Message and carrier signals
+      const msg = t.map(tt => Math.sin(2 * Math.PI * fm * tt));
+      const carrier = t.map(tt => Math.cos(2 * Math.PI * fc * tt));
+      let modulated = [];
+
+      if (modType === "AM") {
+        modulated = t.map(tt => (1 + m * Math.sin(2 * Math.PI * fm * tt)) * Math.cos(2 * Math.PI * fc * tt));
+      } else if (modType === "FM") {
+        modulated = t.map(tt => Math.cos(2 * Math.PI * fc * tt + m * Math.sin(2 * Math.PI * fm * tt)));
+      } else if (modType === "DSBSC") {
+        modulated = t.map(tt => Math.sin(2 * Math.PI * fm * tt) * Math.cos(2 * Math.PI * fc * tt));
+      } else if (modType === "SSBSC") {
+        // Approximate SSB using Hilbert transform (simple quadrature)
+        modulated = t.map(tt =>
+          Math.sin(2 * Math.PI * fm * tt) * Math.cos(2 * Math.PI * fc * tt) +
+          Math.cos(2 * Math.PI * fm * tt) * Math.sin(2 * Math.PI * fc * tt)
+        );
+      }
+
+      const trace1 = {
+        x: t,
+        y: msg,
+        name: "Message Signal (m(t))",
+        mode: "lines"
+      };
+      const trace2 = {
+        x: t,
+        y: modulated,
+        name: `${modType} Signal`,
+        mode: "lines"
+      };
+
+      const layout = {
+        title: `${modType} Waveform`,
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Amplitude" },
+        legend: { x: 0.02, y: 1.1, orientation: "h" }
+      };
+
+      Plotly.newPlot("plot", [trace1, trace2], layout);
     }
 
-    function processAudio() {
-      drawWave('messageCanvas', 1, 0.5, 'green');
-      drawWave('carrierCanvas', 8, 0.3, 'blue');
-      drawWave('amCanvas', 8, 0.5, 'orange');
-      drawWave('fmCanvas', 4 + Math.random() * 4, 0.5, 'red');
-      alert('Visualization generated successfully!');
-    }
+    // Default plot
+    plotSignal();
   </script>
 </body>
 </html>
